@@ -37,6 +37,8 @@ type gradleExtractorDetails struct {
 	localPath string
 	// gradle tasks to build the project.
 	tasks []string
+	// Additional JVM option to build the project
+	gradleOpts []string
 	// Download the extractor from remote server.
 	downloadExtractorFunc func(downloadTo, downloadFrom string) error
 	// Map of configurations for the extractor.
@@ -101,6 +103,12 @@ func (gm *GradleModule) CalcDependencies() (err error) {
 	}
 	return gradleRunConfig.runCmd()
 }
+func (gm *GradleModule) SetGradleTasks(tasks ...string) {
+	gm.gradleExtractorDetails.tasks = tasks
+}
+func (gm *GradleModule) SetGradleOpts(gradleOpts ...string) {
+	gm.gradleExtractorDetails.gradleOpts = gradleOpts
+}
 
 func (gm *GradleModule) createGradleRunConfig() (*gradleRunConfig, error) {
 	gradleExecPath, err := GetGradleExecPath(gm.gradleExtractorDetails.useWrapper)
@@ -119,7 +127,8 @@ func (gm *GradleModule) createGradleRunConfig() (*gradleRunConfig, error) {
 		env:                gm.gradleExtractorDetails.props,
 		gradle:             gradleExecPath,
 		extractorPropsFile: extractorPropsFile,
-		tasks:              strings.Join(gm.gradleExtractorDetails.tasks, " "),
+		tasks:              gm.gradleExtractorDetails.tasks,
+		gradleOpts:         gm.gradleExtractorDetails.gradleOpts,
 		initScript:         gm.gradleExtractorDetails.initScript,
 		logger:             gm.containingBuild.logger,
 	}, nil
@@ -175,7 +184,8 @@ func GetGradleExecPath(useWrapper bool) (string, error) {
 type gradleRunConfig struct {
 	gradle             string
 	extractorPropsFile string
-	tasks              string
+	tasks              []string
+	gradleOpts         []string
 	initScript         string
 	env                map[string]string
 	logger             utils.Log
@@ -187,7 +197,10 @@ func (config *gradleRunConfig) GetCmd() *exec.Cmd {
 	if config.initScript != "" {
 		cmd = append(cmd, "--init-script", config.initScript)
 	}
-	cmd = append(cmd, strings.Split(config.tasks, " ")...)
+	if config.gradleOpts != nil {
+		cmd = append(cmd, config.gradleOpts...)
+	}
+	cmd = append(cmd, config.tasks...)
 	config.logger.Info("Running gradle command:", strings.Join(cmd, " "))
 	return exec.Command(cmd[0], cmd[1:]...)
 }
